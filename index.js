@@ -55,8 +55,15 @@ module.exports = function(session) {
     FileMySqlSession.prototype.all = function(cb) {
         fs.readdir(this.options.dir, (err, files) => {
             cb(err, err || files.reduce((acc, id) => {
-                if (id != 'updates')
-                    acc[id] = fs.readJsonSync(path.join(this.options.dir, id));
+                if (id != 'updates') {
+                    let session;
+                    while (!session) {
+                        try {
+                            session = fs.readJsonSync(path.join(this.options.dir, id));
+                        } catch (e) {}
+                    }
+                    acc[id] = session;
+                }
                 return acc;
             }, {}));
         });

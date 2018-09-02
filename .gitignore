@@ -95,4 +95,5 @@ typings/
 # End of https://www.gitignore.io/api/node,linux
 
 Session.vim
+*.swp
 
