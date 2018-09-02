@@ -114,7 +114,9 @@ module.exports = function(session) {
     FileMySqlSession.prototype.addUpdated = async function(id) {
         let updates = [];
         if (await fs.pathExists(this.options.updatesPath))
-            updates = await fs.readJson(this.options.updatesPath);
+            try {
+                updates = await fs.readJson(this.options.updatesPath);
+            } catch (e) {}
         if (!updates.includes(id)) {
             if (id) updates.push(id);
             fs.writeJson(this.options.updatesPath, updates);
@@ -123,7 +125,12 @@ module.exports = function(session) {
 
     FileMySqlSession.prototype.backupSessions = async function() {
         if (await fs.pathExists(this.options.updatesPath)) {
-            const updates = await fs.readJson(this.options.updatesPath);
+            let updates;
+            try {
+                updates = await fs.readJson(this.options.updatesPath);
+            } catch (e) {
+                return;
+            }
             fs.remove(this.options.updatesPath);
             this.all((err, sessions) => {
                 if (err) {
