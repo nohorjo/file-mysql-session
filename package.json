@@ -1,0 +1,29 @@
+{
+  "name": "file-mysql-session",
+  "version": "1.0.0",
+  "description": "Express session store using the file system and backing up to a MySQL database",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nohorjo/file-mysql-session.git"
+  },
+  "keywords": [
+    "express",
+    "session",
+    "mysql",
+    "filestore"
+  ],
+  "author": "Muhammed Haque",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nohorjo/file-mysql-session/issues"
+  },
+  "homepage": "https://github.com/nohorjo/file-mysql-session#readme",
+  "dependencies": {
+    "debug": "3.1.0",
+    "fs-extra": "7.0.0"
+  }
+}
