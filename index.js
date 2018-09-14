@@ -8,6 +8,7 @@ log.error = debug('file-mysql-session:error');
 
 module.exports = function(session) {
     function FileMySqlSession(options) {
+        log('init');
         this.options = {
             dir: 'sessions',
             createTable: true,
@@ -26,6 +27,7 @@ module.exports = function(session) {
                         throw err;
                     }
                     results.forEach(s => fs.outputFile(path.join(this.options.dir, s.session_id), s.data));
+                    log('init load sessions');
                 }
             );
         };
@@ -42,6 +44,7 @@ module.exports = function(session) {
                         log.error(err);
                         throw err;
                     }
+                    log('create table');
                     loadSessions();
                 }
             );
@@ -54,6 +57,7 @@ module.exports = function(session) {
 
     FileMySqlSession.prototype.all = function(cb) {
         fs.readdir(this.options.dir, (err, files) => {
+            log('get all');
             cb(err, err || files.reduce((acc, id) => {
                 if (id != 'updates') {
                     let session;
@@ -72,6 +76,7 @@ module.exports = function(session) {
     FileMySqlSession.prototype.destroy = function(id, cb) {
         fs.remove(path.join(this.options.dir, id), err => {
             if (!err) this.addUpdated();
+            log('destroy', id);
             cb(err);
         });
     }
@@ -79,16 +84,19 @@ module.exports = function(session) {
     FileMySqlSession.prototype.clear = function(cb) {
         fs.emptyDir(this.options.dir, err => {
             if (!err) this.addUpdated();
+            log('clear');
             cb(err);
         });
     }
 
     FileMySqlSession.prototype.length = function(cb) {
+        log('length');
         fs.readdir(this.options.dir, (err, files) => cb(err, err || files.length));
     }
 
     FileMySqlSession.prototype.get = async function(id, cb) {
         const sessionFile = path.join(this.options.dir, id);
+        log('get', id);
         if (!(await fs.pathExists(sessionFile))) {
             cb();
         } else {
@@ -99,6 +107,7 @@ module.exports = function(session) {
     FileMySqlSession.prototype.set = function(id, session, cb) {
         fs.outputJson(path.join(this.options.dir, id), session, err => {
             if (!err) this.addUpdated(id);
+            log('set', id);
             cb(err);
         });
     }
@@ -107,6 +116,7 @@ module.exports = function(session) {
         session.cookie.expires = new Date(Date.now() + session.cookie.originalMaxAge);
         fs.outputJson(path.join(this.options.dir, id), session, err => {
             if (!err) this.addUpdated(id);
+            log('touch', id);
             cb(err);
         });
     }
@@ -121,6 +131,7 @@ module.exports = function(session) {
             if (id) updates.push(id);
             fs.writeJson(this.options.updatesPath, updates);
         }
+        log('updates', updates);
     }
 
     FileMySqlSession.prototype.backupSessions = async function() {
@@ -131,6 +142,7 @@ module.exports = function(session) {
             } catch (e) {
                 return;
             }
+            log('update db', updates);
             fs.remove(this.options.updatesPath);
             this.all((err, sessions) => {
                 if (err) {
