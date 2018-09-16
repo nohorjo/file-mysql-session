@@ -159,6 +159,7 @@ module.exports = function(session) {
                         }
                     }
                 );
+                updates = updates.filter(id => sessions[id]);
                 if (updates.length) {
                     this.options.connection.query(
                         Array(updates.length).fill(
