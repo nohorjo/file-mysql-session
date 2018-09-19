@@ -5,6 +5,7 @@ const debug = require('debug');
 
 const log = debug('file-mysql-session:log');
 log.error = debug('file-mysql-session:error');
+log.debug = debug('file-mysql-session:debug');
 
 module.exports = function(session) {
     function FileMySqlSession(options) {
@@ -100,7 +101,14 @@ module.exports = function(session) {
         if (!(await fs.pathExists(sessionFile))) {
             cb();
         } else {
-            fs.readJson(sessionFile, (err, session) => err ? this.get(id, cb) : cb(null, session));
+            fs.readJson(sessionFile, (err, session) => {
+                if (err) {
+                    this.get(id, cb);
+                } else {
+                    log.debug('get', id, session);
+                    cb(null, session);
+                }
+            });
         }
     }
 
@@ -108,6 +116,7 @@ module.exports = function(session) {
         fs.outputJson(path.join(this.options.dir, id), session, err => {
             if (!err) this.addUpdated(id);
             log('set', id);
+            log.debug('set', id, session);
             cb(err);
         });
     }
@@ -117,6 +126,7 @@ module.exports = function(session) {
         fs.outputJson(path.join(this.options.dir, id), session, err => {
             if (!err) this.addUpdated(id);
             log('touch', id);
+            log.debug('touch', id, session);
             cb(err);
         });
     }
