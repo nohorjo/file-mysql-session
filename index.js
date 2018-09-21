@@ -17,6 +17,8 @@ module.exports = function(session) {
             createTable: true,
             table: 'sessions',
             backupInterval: 60000,
+            retryLimit: 100,
+            retryWait: 100,
             ...options
         };
         this.options.updatesPath = path.join(this.options.dir, 'updates');
@@ -75,7 +77,7 @@ module.exports = function(session) {
         fs.remove(path.join(this.options.dir, id), err => {
             if (!err) this.addUpdated();
             log('destroy', id);
-            cb(err);
+            cb && cb(err);
         });
     }
 
@@ -92,13 +94,21 @@ module.exports = function(session) {
         fs.readdir(this.options.dir, (err, files) => cb(err, err || files.length));
     }
 
-    FileMySqlSession.prototype._get = async function(id) {
+    FileMySqlSession.prototype._get = async function(id, retries = this.options.retryLimit) {
         const sessionFile = path.join(this.options.dir, id);
         if (await fs.pathExists(sessionFile)) {
             try {
                 return await fs.readJson(sessionFile);
             } catch (e) {
-                if (e.message && e.message.match(/Unexpected.*JSON/)) return this._get(id);
+                if (
+                    e.message
+                    && e.message.match(/Unexpected.*JSON/)
+                    && retries
+                ) {
+                    await new Promise(r => setTimeout(r, this.options.retryWait));
+                    return this._get(id, --retries);
+                }
+                this.destroy(id);
                 throw e;
             }
         }
