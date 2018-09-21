@@ -108,7 +108,7 @@ module.exports = function(session) {
         log('get', id);
         this._get(id).then(s => {
             log.debug('get', id, s);
-            s.ORIGINAL = JSON.parse((JSON.stringify(s)));
+            if (s) s.ORIGINAL = JSON.parse((JSON.stringify(s)));
             cb(null, s);
         }).catch(cb);
     }
@@ -117,7 +117,7 @@ module.exports = function(session) {
         const { ORIGINAL = {} } = session;
         delete session.ORIGINAL;
         const changes = diff(ORIGINAL, session);
-        this._get(id).then(current => {
+        this._get(id).then((current = {}) => {
             delete current.ORIGINAL;
             changes.forEach(change => applyChange(current, true, change));
             fs.outputJson(path.join(this.options.dir, id), current, err => {
