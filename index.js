@@ -2,6 +2,8 @@ const util = require('util');
 const fs = require('fs-extra');
 const path = require('path');
 const debug = require('debug');
+const { diff, applyChange } = require('deep-diff');
+const freeze = require('deep-freeze');
 
 const log = debug('file-mysql-session:log');
 log.error = debug('file-mysql-session:error');
@@ -59,18 +61,13 @@ module.exports = function(session) {
     FileMySqlSession.prototype.all = function(cb) {
         fs.readdir(this.options.dir, (err, files) => {
             log('get all');
-            cb(err, err || files.reduce((acc, id) => {
-                if (id != 'updates') {
-                    let session;
-                    while (!session) {
-                        try {
-                            session = fs.readJsonSync(path.join(this.options.dir, id));
-                        } catch (e) {}
-                    }
-                    acc[id] = session;
-                }
-                return acc;
-            }, {}));
+            files = files.filter(f => f != 'updates');
+            Promise.all(files.map(id => this._get(id)))
+                .then(sessions => cb(null, sessions.reduce((acc, session, i) => {
+                    acc[files[i]] = session;
+                    return acc;
+                }, {})))
+                .catch(cb);
         });
     }
 
@@ -95,40 +92,53 @@ module.exports = function(session) {
         fs.readdir(this.options.dir, (err, files) => cb(err, err || files.length));
     }
 
-    FileMySqlSession.prototype.get = async function(id, cb) {
+    FileMySqlSession.prototype._get = async function(id) {
         const sessionFile = path.join(this.options.dir, id);
-        log('get', id);
-        if (!(await fs.pathExists(sessionFile))) {
-            cb();
-        } else {
-            fs.readJson(sessionFile, (err, session) => {
-                if (err) {
-                    this.get(id, cb);
-                } else {
-                    log.debug('get', id, session);
-                    cb(null, session);
-                }
-            });
+        if (await fs.pathExists(sessionFile)) {
+            try {
+                return await fs.readJson(sessionFile);
+            } catch (e) {
+                if (e.message && e.message.match(/Unexpected.*JSON/)) return this._get(id);
+                throw e;
+            }
         }
     }
 
-    FileMySqlSession.prototype.set = function(id, session, cb) {
-        fs.outputJson(path.join(this.options.dir, id), session, err => {
-            if (!err) this.addUpdated(id);
-            log('set', id);
-            log.debug('set', id, session);
-            cb(err);
-        });
+    FileMySqlSession.prototype.get = function(id, cb) {
+        log('get', id);
+        this._get(id).then(s => {
+            log.debug('get', id, s);
+            s.ORIGINAL = JSON.parse((JSON.stringify(s)));
+            cb(null, s);
+        }).catch(cb);
     }
 
-    FileMySqlSession.prototype.touch = function(id, session, cb) {
-        session.cookie.expires = new Date(Date.now() + session.cookie.originalMaxAge);
-        fs.outputJson(path.join(this.options.dir, id), session, err => {
-            if (!err) this.addUpdated(id);
-            log('touch', id);
-            log.debug('touch', id, session);
-            cb(err);
-        });
+    FileMySqlSession.prototype.set = function(id, session, cb) {
+        const { ORIGINAL = {} } = session;
+        delete session.ORIGINAL;
+        const changes = diff(ORIGINAL, session);
+        this._get(id).then(current => {
+            delete current.ORIGINAL;
+            changes.forEach(change => applyChange(current, true, change));
+            fs.outputJson(path.join(this.options.dir, id), current, err => {
+                if (!err) this.addUpdated(id);
+                log('set', id);
+                log.debug('set', id, session);
+                cb(err);
+            });
+        }).catch(cb);
+    }
+
+    FileMySqlSession.prototype.touch = function(id, _, cb) {
+        this._get(id).then(session => {
+            session.cookie.expires = new Date(Date.now() + session.cookie.originalMaxAge);
+            fs.outputJson(path.join(this.options.dir, id), session, err => {
+                if (!err) this.addUpdated(id);
+                log('touch', id);
+                log.debug('touch', id, session);
+                cb(err);
+            });
+        }).catch(cb);
     }
 
     FileMySqlSession.prototype.addUpdated = async function(id) {
@@ -178,6 +188,7 @@ module.exports = function(session) {
                         ).join(';'),
                         updates.map(id => {
                             const session = sessions[id];
+                            delete session.ORIGINAL;
                             const expires = ((new Date(session.cookie.expires) / 1000) | 0).toString();
                             return [
                                 id,
