@@ -151,14 +151,15 @@ module.exports = function(session) {
         }).catch(cb);
     }
 
-    FileMySqlSession.prototype.addUpdated = async function(id) {
-        let updates = [];
+    FileMySqlSession.prototype.addUpdated = async function(id, removed = false) {
+        let updates = {mod: [], removed: []};
         if (await fs.pathExists(this.options.updatesPath))
             try {
                 updates = await fs.readJson(this.options.updatesPath);
             } catch (e) {}
-        if (!updates.includes(id)) {
-            if (id) updates.push(id);
+        const list = updates[removed ? 'removed' : 'mod'];
+        if (!list.includes(id)) {
+            if (id) list.push(id);
             fs.writeJson(this.options.updatesPath, updates);
         }
         log('updates', updates);
@@ -174,29 +175,29 @@ module.exports = function(session) {
             }
             log('update db', updates);
             fs.remove(this.options.updatesPath);
+            this.options.connection.query(
+                `DELETE FROM ${this.options.table} WHERE session_id IN (?);`,
+                updates.removed || [],
+                err => {
+                    if (err) {
+                        log.error(err);
+                        throw err;
+                    }
+                }
+            );
             this.all((err, sessions) => {
                 if (err) {
                     log.error(err);
                     throw err;
                 }
-                this.options.connection.query(
-                    `DELETE FROM ${this.options.table} WHERE session_id NOT IN (?);`,
-                    Object.keys(sessions),
-                    err => {
-                        if (err) {
-                            log.error(err);
-                            throw err;
-                        }
-                    }
-                );
-                updates = updates.filter(id => sessions[id]);
-                if (updates.length) {
+                const mod = updates.mod.filter(id => sessions[id]);
+                if (mod.length) {
                     this.options.connection.query(
-                        Array(updates.length).fill(
+                        Array(mod.length).fill(
                             `INSERT INTO ${this.options.table} (session_id, expires, data) VALUES (?,?,?)
                             ON DUPLICATE KEY UPDATE expires=?, data=?`
                         ).join(';'),
-                        updates.map(id => {
+                        mod.map(id => {
                             const session = sessions[id];
                             delete session.ORIGINAL;
                             const expires = ((new Date(session.cookie.expires) / 1000) | 0).toString();
