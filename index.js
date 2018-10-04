@@ -22,6 +22,7 @@ module.exports = function(session) {
             ...options
         };
         this.options.updatesPath = path.join(this.options.dir, 'updates');
+        fs.mkdirs(this.options.dir);
 
         const loadSessions = () => {
             this.options.connection.query(
