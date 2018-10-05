@@ -176,16 +176,18 @@ module.exports = function(session) {
             }
             log('update db', updates);
             fs.remove(this.options.updatesPath);
-            this.options.connection.query(
-                `DELETE FROM ${this.options.table} WHERE session_id IN (?);`,
-                updates.removed || [],
-                err => {
-                    if (err) {
-                        log.error(err);
-                        throw err;
+            if (updates.removed  && updates.removed.length)  {
+                this.options.connection.query(
+                    `DELETE FROM ${this.options.table} WHERE session_id IN (?);`,
+                    updates.removed || [],
+                    err => {
+                        if (err) {
+                            log.error(err);
+                            throw err;
+                        }
                     }
-                }
-            );
+                );
+            }
             this.all((err, sessions) => {
                 if (err) {
                     log.error(err);
