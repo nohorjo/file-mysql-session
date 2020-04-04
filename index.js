@@ -3,7 +3,6 @@ const fs = require('fs-extra');
 const path = require('path');
 const debug = require('debug');
 const { diff, applyChange } = require('deep-diff');
-const freeze = require('deep-freeze');
 
 const log = debug('file-mysql-session:log');
 log.error = debug('file-mysql-session:error');
@@ -66,27 +65,40 @@ module.exports = function(session) {
             log('get all');
             files = files.filter(f => f != 'updates');
             Promise.all(files.map(id => this._get(id)))
-                .then(sessions => cb(null, sessions.reduce((acc, session, i) => {
-                    acc[files[i]] = session;
-                    return acc;
-                }, {})))
+                .then(sessions => {
+                    sessions = sessions.reduce((acc, session, i) => {
+                        acc[files[i]] = session;
+                        return acc;
+                    }, {});
+                    for (const id in sessions) {
+                        if (new Date(sessions[id].cookie.expires) < new Date()) {
+                            this.destroy(id);
+                            delete sessions[id];
+                        }
+                    }
+                    console.log(sessions);
+                    return sessions;
+                })
+                .then(sessions => cb(null, sessions))
                 .catch(cb);
         });
     }
 
     FileMySqlSession.prototype.destroy = function(id, cb) {
         fs.remove(path.join(this.options.dir, id), err => {
-            if (!err) this.addUpdated();
+            if (!err) this.addUpdated(id, true);
             log('destroy', id);
             cb && cb(err);
         });
     }
 
     FileMySqlSession.prototype.clear = function(cb) {
-        fs.emptyDir(this.options.dir, err => {
-            if (!err) this.addUpdated();
-            log('clear');
-            cb(err);
+        fs.readdir(this.options.dir, (err, files) => {
+            log('clear all');
+            files = files.filter(f => f != 'updates');
+            Promise.all(files.map(id => new Promise(
+                (resolve, reject) => this.destroy(id, err => err ? reject(err) : resolve())
+            ))).then(() => cb(null)).catch(cb)
         });
     }
 
@@ -176,10 +188,10 @@ module.exports = function(session) {
             }
             log('update db', updates);
             fs.remove(this.options.updatesPath);
-            if (updates.removed  && updates.removed.length)  {
+            if (updates.removed && updates.removed.length)  {
                 this.options.connection.query(
                     `DELETE FROM ${this.options.table} WHERE session_id IN (?);`,
-                    updates.removed || [],
+                    updates.removed,
                     err => {
                         if (err) {
                             log.error(err);
