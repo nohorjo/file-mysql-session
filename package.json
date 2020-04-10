@@ -1,6 +1,6 @@
 {
   "name": "file-mysql-session",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Express session store using the file system and backing up to a MySQL database",
   "main": "index.js",
   "scripts": {

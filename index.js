@@ -76,7 +76,6 @@ module.exports = function(session) {
                             delete sessions[id];
                         }
                     }
-                    console.log(sessions);
                     return sessions;
                 })
                 .then(sessions => cb(null, sessions))
