@@ -4,10 +4,10 @@ Express session store using the file system and backing up to a MySQL database
 # Usage
 ```javascript
 import * as session from 'express-session';
-const FileMySQLSession = require('file-mysql-session')(session);
+const fileMySQLSession = require('file-mysql-session')(session);
 
 app.use(session({
-    store: new FileMySQLSession({
+    store: fileMySQLSession({
         connection: pool, // MySQL connection pool
         dir: 'sessions', // dir path to keep session files
         createTable: true, // whether or not to create the table if it doesn not exist
